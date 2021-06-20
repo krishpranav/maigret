@@ -1,4 +1,4 @@
-module github.com/krishpranav/maigrate
+module github.com/krishpranav/maigret
 
 go 1.15
 

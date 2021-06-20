@@ -1,12 +1,12 @@
-# maigrate
+# maigret
 A simple username osint tool built in go
 
 [![forthebadge](https://forthebadge.com/images/badges/made-with-go.svg)](https://forthebadge.com)
 
 # Installation
 ```
-git clone https://github.com/krishpranav/maigrate
-cd maigrate
+git clone https://github.com/krishpranav/maigret
+cd maigret
 go get
-go run maigrate.go
+go run maigret.go
 ```

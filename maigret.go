@@ -18,8 +18,8 @@ import (
 	"github.com/dlclark/regexp2"
 
 	color "github.com/fatih/color"
-	chrm "github.com/krishpranav/maigrate/chrome"
-	downloader "github.com/krishpranav/maigrate/downloader"
+	chrm "github.com/krishpranav/maigret/chrome"
+	downloader "github.com/krishpranav/maigret/downloader"
 	"golang.org/x/net/proxy"
 )
 
@@ -99,10 +99,10 @@ func parseArguments() []string {
 
 	if help, _ := HasElement(args, "-h", "--help"); help && !options.runTest {
 		fmt.Print(
-			`Maigrate - User Osint Across Social Networks.
+			`maigret - User Osint Across Social Networks.
 
-usage: Maigrate USERNAME [USERNAMES...] flags options
-perform test: Maigrate --test
+usage: maigret USERNAME [USERNAMES...] flags options
+perform test: maigret --test
 
 positional arguments:
         USERNAMES             one or more usernames to investigate
@@ -125,7 +125,7 @@ options:
 	}
 
 	if len(args) < 1 {
-		fmt.Println("WARNING: You executed Maigrate without arguments. Use `-h` flag if you need help.")
+		fmt.Println("WARNING: You executed maigret without arguments. Use `-h` flag if you need help.")
 		fmt.Printf("Input username to investigate:")
 		var _usernames string
 		fmt.Scanln(&_usernames)
@@ -222,7 +222,7 @@ func main() {
 			site := specifiedSites
 
 			if val, ok := _siteData[site]; ok {
-				res := Maigrate(username, site, val)
+				res := maigret(username, site, val)
 				WriteResult(res)
 			} else {
 				log.Printf("[!] %s is not a valid site.", site)
@@ -240,7 +240,7 @@ func main() {
 				guard <- 1
 				go func(site string) {
 					defer waitGroup.Done()
-					res := Maigrate(username, site, siteData[site])
+					res := maigret(username, site, siteData[site])
 					WriteResult(res)
 					<-guard
 				}(site)
@@ -385,7 +385,7 @@ func HasElement(array []string, targets ...string) (bool, int) {
 	return false, -1
 }
 
-func Maigrate(username string, site string, data SiteData) Result {
+func maigret(username string, site string, data SiteData) Result {
 	var u, urlProbe string
 	var result Result
 
@@ -573,7 +573,7 @@ func getScreenshot(resolution, targetURL, outputPath string) error {
 }
 
 func test() {
-	log.Println("Maigrate is activated for checking site validity.")
+	log.Println("maigret is activated for checking site validity.")
 
 	if options.withScreenshot {
 		log.Println("Taking screenshot is not available in this sequence. Aborted.")
@@ -590,8 +590,8 @@ func test() {
 			_usedUsername := _currentContext.UsedUsername
 			_unusedUsername := _currentContext.UnusedUsername
 
-			_resUsed := Maigrate(_usedUsername, site, siteData[site])
-			_resUnused := Maigrate(_unusedUsername, site, siteData[site])
+			_resUsed := maigret(_usedUsername, site, siteData[site])
+			_resUnused := maigret(_unusedUsername, site, siteData[site])
 
 			if _resUsed.Exist && !_resUnused.Exist {
 				// Works
@@ -640,5 +640,5 @@ func test() {
 	}
 
 	logger.Printf("\nThese %d sites are not compatible with the Sherlock database.\n"+
-		"Please check https://github.com/tdh8316/Maigrate/#to-fix-incompatible-sites", tc.Get())
+		"Please check https://github.com/tdh8316/maigret/#to-fix-incompatible-sites", tc.Get())
 }
