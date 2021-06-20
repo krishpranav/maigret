@@ -1,11 +1,14 @@
 package downloader
 
 import (
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/tidwall/gjson"
 )
 
 func downloadInstagram(url string, logger *log.Logger) {
@@ -23,4 +26,8 @@ func downloadInstagram(url string, logger *log.Logger) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	bdB, _ := ioutil.ReadAll(r.Body)
+	r.Body.Close()
+
+	targetURIs = append(targetURIs, gjson.GetBytes(bdB, "graphql.user.profile_pic_url_hd").String())
 }
