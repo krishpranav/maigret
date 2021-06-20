@@ -182,7 +182,6 @@ options:
 }
 
 func main() {
-
 	usernames := parseArguments()
 
 	initializeSiteData(options.updateBeforeRun)
@@ -192,5 +191,48 @@ func main() {
 	if options.runTest {
 		test()
 		os.Exit(0)
+	}
+
+	if options.specifySite {
+		for _, username := range usernames {
+			_siteData := map[string]SiteData{}
+
+			for siteName, v := range siteData {
+				_siteData[strings.ToLower(siteName)] = v
+			}
+
+			if options.noColor {
+				fmt.Printf("\nInvestigating %s on:\n", username)
+			} else {
+				fmt.Fprintf(color.Output, "Investigating %s on:\n", color.HiGreenString(username))
+			}
+			site := specifiedSites
+
+			if val, ok := _siteData[site]; ok {
+				res := Investigo(username, site, val)
+				WriteResult(res)
+			} else {
+				log.Printf("[!] %s is not a valid site.", site)
+			}
+		}
+	} else {
+		for _, username := range usernames {
+			if options.noColor {
+				fmt.Printf("\nInvestigating %s on:\n", username)
+			} else {
+				fmt.Fprintf(color.Output, "Investigating %s on:\n", color.HiGreenString(username))
+			}
+			waitGroup.Add(len(siteData))
+			for site := range siteData {
+				guard <- 1
+				go func(site string) {
+					defer waitGroup.Done()
+					res := Investigo(username, site, siteData[site])
+					WriteResult(res)
+					<-guard
+				}(site)
+			}
+			waitGroup.Wait()
+		}
 	}
 }
