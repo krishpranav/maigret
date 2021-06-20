@@ -5,3 +5,8 @@ const (
 	screenShotRes   string = "1024x768"
 	torProxyAddress string = "socks5://127.0.0.1:9050"
 )
+
+var (
+	maxGoroutines int = 32
+	guard         chan int
+)
