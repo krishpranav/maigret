@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -20,7 +21,8 @@ type forwardingProxy struct {
 }
 
 func (proxy *forwardingProxy) start() error {
-	log.WithFields(log.Fields{"target-url": proxy.targetURL}).Debug("Initializing functions for forwarding proxy")
+
+	log.WithFields(log.Fields{"target-url": proxy.targetURL}).Debug("Initializing shitty forwarding proxy")
 
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -37,5 +39,27 @@ func (proxy *forwardingProxy) start() error {
 	}
 
 	proxy.port = proxy.listener.Addr().(*net.TCPAddr).Port
+	log.WithFields(log.Fields{"target-url": proxy.targetURL, "listen-port": proxy.port}).
+		Debug("forwarding proxy listening port")
 
+	go func() {
+
+		log.WithFields(log.Fields{"target-url": proxy.targetURL, "listen-address": proxy.listener.Addr()}).
+			Debug("Starting shitty forwarding proxy goroutine")
+
+		httpServer := http.NewServeMux()
+		httpServer.HandleFunc("/", proxy.handle)
+
+		if err := http.Serve(proxy.listener, httpServer); err != nil {
+
+			if strings.Contains(err.Error(), "use of closed network connection") {
+				return
+			}
+
+			log.WithFields(log.Fields{"err": err}).Error("Shitty forwarding proxy broke")
+		}
+
+	}()
+
+	return nil
 }
