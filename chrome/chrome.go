@@ -3,6 +3,7 @@ package chrome
 import (
 	"io/ioutil"
 	"os"
+	"os/exec"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -68,4 +69,15 @@ func (chrome *Chrome) chromeLocator() {
 			"Chrome Canary v60+. Either install Google Chrome or try specifying a valid location with " +
 			"the --chrome-path flag")
 	}
+}
+
+func (chrome *Chrome) checkVersion(lowestVersion string) bool {
+
+	out, err := exec.Command(chrome.Path, "-version").Output()
+	if err != nil {
+		log.WithFields(log.Fields{"chrome-path": chrome.Path, "err": err}).Error("An error occured while trying to get the chrome version")
+		return false
+	}
+
+	version := string(out)
 }
