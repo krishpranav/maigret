@@ -359,3 +359,11 @@ func Request(target string) (*http.Response, RequestError) {
 
 	return client.Do(request)
 }
+
+func ReadResponseBody(response *http.Response) string {
+	bodyBytes, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		panic(err)
+	}
+	return string(bodyBytes)
+}
