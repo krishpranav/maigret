@@ -551,3 +551,21 @@ func WriteResult(result Result) {
 		}
 	}
 }
+
+func getScreenshot(resolution, targetURL, outputPath string) error {
+	chrome := &chrm.Chrome{
+		Resolution:       resolution,
+		ChromeTimeout:    60,
+		ChromeTimeBudget: 60,
+		UserAgent:        userAgent,
+		// ScreenshotPath: "/opt/investigo/data",
+	}
+	// chrome.setLoggerStatus(false)
+	chrome.Setup()
+	u, err := url.ParseRequestURI(targetURL)
+	if err != nil {
+		return err
+	}
+	chrome.ScreenshotURL(u, outputPath)
+	return nil
+}
