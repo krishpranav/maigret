@@ -46,4 +46,17 @@ func (chrome *Chrome) chromeLocator() {
 		"/Applications/Chromium.app/Contents/MacOS/Chromium",
 		"C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
 	}
+
+	for _, path := range paths {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			continue
+		}
+
+		log.WithField("chrome-path", path).Debug("Google Chrome path")
+		chrome.Path = path
+
+		if chrome.checkVersion("60") {
+			break
+		}
+	}
 }
