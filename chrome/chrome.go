@@ -133,4 +133,12 @@ func (chrome *Chrome) ScreenshotURL(targetURL *url.URL, destination string) {
 		"--window-size=" + chrome.Resolution, "--screenshot=" + destination,
 		"--virtual-time-budget=" + strconv.Itoa(chrome.ChromeTimeBudget*6000),
 	}
+
+	if len(chrome.Argvs) > 0 {
+		for _, a := range chrome.Argvs {
+			chromeArguments = append(chromeArguments, a)
+		}
+	}
+
+	log.Info(chromeArguments)
 }
