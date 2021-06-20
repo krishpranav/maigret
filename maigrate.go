@@ -184,4 +184,13 @@ options:
 func main() {
 
 	usernames := parseArguments()
+
+	initializeSiteData(options.updateBeforeRun)
+
+	guard = make(chan int, maxGoroutines)
+
+	if options.runTest {
+		test()
+		os.Exit(0)
+	}
 }
