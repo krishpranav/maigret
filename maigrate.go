@@ -1,12 +1,16 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"log"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 
 	color "github.com/fatih/color"
+	"github.com/krishpranav/maigrate/downloader"
 )
 
 const (
@@ -77,4 +81,102 @@ func (c *counter) Add() {
 
 func (c *counter) Get() int {
 	return int(atomic.LoadInt32(&c.n))
+}
+
+func parseArguments() []string {
+	args := os.Args[1:]
+	var argIndex int
+
+	if help, _ := HasElement(args, "-h", "--help"); help && !options.runTest {
+		fmt.Print(
+			`maigrate - User Osint Across Social Networks.
+usage: maigrate USERNAME [USERNAMES...] flags options
+perform test: maigrate --test
+positional arguments:
+        USERNAMES             one or more usernames to investigate
+flags:
+        -h, --help            show this help message and exit
+        --no-color            disable colored stdout output
+        --update              update database before run from Sherlock repository
+        -t, --tor             use tor proxy
+        -s, --screenshot      take a screenshot of each matched urls
+        -v, --verbose         verbose output
+        -d, --download        download the contents of site if available
+options:
+        --database DATABASE   use custom database
+        --site SITE           specific site to investigate
+`,
+		)
+		os.Exit(0)
+	}
+
+	if len(args) < 1 {
+		fmt.Println("WARNING: You executed maigrate without arguments. Use `-h` flag if you need help.")
+		fmt.Printf("Input username to investigate:")
+		var _usernames string
+		fmt.Scanln(&_usernames)
+		return strings.Split(_usernames, " ")
+	}
+
+	options.noColor, argIndex = HasElement(args, "--no-color")
+	if options.noColor {
+		logger = log.New(os.Stdout, "", 0)
+		args = append(args[:argIndex], args[argIndex+1:]...)
+	}
+
+	options.withTor, argIndex = HasElement(args, "-t", "--tor")
+	if options.withTor {
+		args = append(args[:argIndex], args[argIndex+1:]...)
+	}
+
+	options.withScreenshot, argIndex = HasElement(args, "-s", "--screenshot")
+	if options.withScreenshot {
+		args = append(args[:argIndex], args[argIndex+1:]...)
+		maxGoroutines = 8
+	} else {
+		maxGoroutines = 32
+	}
+
+	options.runTest, argIndex = HasElement(args, "--test")
+	if options.runTest {
+		args = append(args[:argIndex], args[argIndex+1:]...)
+	}
+
+	options.verbose, argIndex = HasElement(args, "-v", "--verbose")
+	if options.verbose {
+		args = append(args[:argIndex], args[argIndex+1:]...)
+	}
+
+	options.updateBeforeRun, argIndex = HasElement(args, "--update")
+	if options.updateBeforeRun {
+		args = append(args[:argIndex], args[argIndex+1:]...)
+	}
+
+	options.useCustomData, argIndex = HasElement(args, "--database")
+	if options.useCustomData {
+		dataFileName = args[argIndex+1]
+		args = append(args[:argIndex], args[argIndex+2:]...)
+	}
+
+	options.specifySite, argIndex = HasElement(args, "--site")
+	if options.specifySite {
+		specifiedSites = strings.ToLower(args[argIndex+1])
+		// Use verbose output
+		options.verbose = true
+		args = append(args[:argIndex], args[argIndex+2:]...)
+	}
+
+	options.download, argIndex = HasElement(args, "-d", "--download")
+	if options.download {
+		if len(args) <= 1 {
+			fmt.Println("List of sites that can download userdata")
+			for key := range downloader.Impls {
+				fmt.Fprintf(color.Output, "[%s] %s\n", color.HiGreenString("+"), color.HiWhiteString(key))
+			}
+			os.Exit(0)
+		}
+		args = append(args[:argIndex], args[argIndex+1:]...)
+	}
+
+	return args
 }
