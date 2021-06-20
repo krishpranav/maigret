@@ -3,6 +3,7 @@ package chrome
 import (
 	"errors"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -116,4 +117,10 @@ func (chrome *Chrome) SetScreenshotPath(p string) error {
 	chrome.ScreenshotPath = p
 
 	return nil
+}
+
+func (chrome *Chrome) ScreenshotURL(targetURL *url.URL, destination string) {
+
+	log.WithFields(log.Fields{"url": targetURL, "full-destination": destination}).
+		Debug("Full path to screenshot save using Chrome")
 }
