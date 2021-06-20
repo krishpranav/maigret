@@ -180,3 +180,8 @@ options:
 
 	return args
 }
+
+func main() {
+
+	usernames := parseArguments()
+}
