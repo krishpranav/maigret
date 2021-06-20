@@ -65,3 +65,7 @@ type SiteData struct {
 type RequestError interface {
 	Error() string
 }
+
+type counter struct {
+	n int32
+}
