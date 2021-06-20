@@ -10,3 +10,15 @@ var (
 	maxGoroutines int = 32
 	guard         chan int
 )
+
+type Result struct {
+	Username string
+	Exist    bool
+	Proxied  bool
+	Site     string
+	URL      string
+	URLProbe string
+	Link     string
+	Err      bool
+	ErrMsg   string
+}
