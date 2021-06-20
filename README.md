@@ -3,7 +3,9 @@ A simple username osint tool built in go
 
 [![forthebadge](https://forthebadge.com/images/badges/made-with-go.svg)](https://forthebadge.com)
 
-<img src="https://github.com/krishpranav/maigret/blob/master/images/maigret.png"></img>
+  <p align="center">
+    <img src="https://raw.githubusercontent.com/krishpranav/maigret/master/images/maigret.png" height="200"/>
+  </p>
 
 # Installation
 ```
