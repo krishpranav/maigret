@@ -1,13 +1,16 @@
 package chrome
 
 import (
-	"errors"
+	"context"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
+	"time"
+
+	"github.com/pkg/errors"
 
 	gover "github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
@@ -141,4 +144,68 @@ func (chrome *Chrome) ScreenshotURL(targetURL *url.URL, destination string) {
 	}
 
 	log.Info(chromeArguments)
+
+	if os.Geteuid() == 0 {
+		log.WithField("euid", os.Geteuid()).Debug("Running as root, adding --no-sandbox")
+		chromeArguments = append(chromeArguments, "--no-sandbox")
+	}
+
+	if targetURL.Scheme == "https" {
+
+		originalPath := targetURL.Path
+		proxy := forwardingProxy{targetURL: targetURL}
+
+		time.Sleep(500 * time.Millisecond)
+
+		if err := proxy.start(); err != nil {
+
+			log.WithField("error", err).Warning("Failed to start proxy for HTTPS request")
+			return
+		}
+
+		proxyURL, _ := url.Parse("http://localhost:" + strconv.Itoa(proxy.port) + "/")
+		proxyURL.Path = originalPath
+
+		chromeArguments = append(chromeArguments, "--allow-insecure-localhost")
+
+		chromeArguments = append(chromeArguments, proxyURL.String())
+
+		defer proxy.stop()
+
+	} else {
+
+		chromeArguments = append(chromeArguments, targetURL.String())
+	}
+
+	log.WithFields(log.Fields{"arguments": chromeArguments}).Debug("Google Chrome arguments")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(chrome.ChromeTimeout)*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, chrome.Path, chromeArguments...)
+
+	log.WithFields(log.Fields{"url": targetURL, "destination": destination}).Info("Taking screenshot")
+
+	startTime := time.Now()
+	if err := cmd.Start(); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+
+		if ctx.Err() == context.DeadlineExceeded {
+			log.WithFields(log.Fields{"url": targetURL, "destination": destination, "err": err}).
+				Error("Timeout reached while waiting for screenshot to finish")
+			return
+		}
+
+		log.WithFields(log.Fields{"url": targetURL, "destination": destination, "err": err}).
+			Error("Screenshot failed")
+
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"url": targetURL, "destination": destination, "duration": time.Since(startTime),
+	}).Info("Screenshot taken")
 }
