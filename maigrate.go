@@ -49,3 +49,15 @@ var (
 		download        bool
 	}
 )
+
+type SiteData struct {
+	ErrorType      string `json:"errorType"`
+	ErrorMsg       string `json:"errorMsg"`
+	URL            string `json:"url"`
+	URLMain        string `json:"urlMain"`
+	URLProbe       string `json:"urlProbe"`
+	URLError       string `json:"errorUrl"`
+	UsedUsername   string `json:"username_claimed"`
+	UnusedUsername string `json:"username_unclaimed"`
+	RegexCheck     string `json:"regexCheck"`
+}
