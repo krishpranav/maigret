@@ -25,4 +25,9 @@ func (proxy *forwardingProxy) start() error {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
+
+	proxy.targetURL.Path = "/"
+	proxy.server = httputil.NewSingleHostReverseProxy(proxy.targetURL)
+	proxy.server.Transport = transport
+
 }
