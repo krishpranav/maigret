@@ -30,4 +30,10 @@ func (proxy *forwardingProxy) start() error {
 	proxy.server = httputil.NewSingleHostReverseProxy(proxy.targetURL)
 	proxy.server.Transport = transport
 
+	var err error
+	proxy.listener, err = net.Listen("tcp", listeningURL+":0")
+	if err != nil {
+		return err
+	}
+
 }
