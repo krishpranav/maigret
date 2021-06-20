@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 
 	gover "github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
@@ -123,4 +124,13 @@ func (chrome *Chrome) ScreenshotURL(targetURL *url.URL, destination string) {
 
 	log.WithFields(log.Fields{"url": targetURL, "full-destination": destination}).
 		Debug("Full path to screenshot save using Chrome")
+
+	var chromeArguments = []string{
+		"--headless", "--disable-gpu", "--hide-scrollbars",
+		"--disable-crash-reporter", "--no-sandbox",
+		// "--disable-software-rasterizer", "--disable-dev-shm-usage",
+		"--user-agent=" + chrome.UserAgent,
+		"--window-size=" + chrome.Resolution, "--screenshot=" + destination,
+		"--virtual-time-budget=" + strconv.Itoa(chrome.ChromeTimeBudget*6000),
+	}
 }
