@@ -7,6 +7,9 @@ A simple username osint tool built in go
     <img src="https://raw.githubusercontent.com/krishpranav/maigret/master/images/maigret.png" height="200"/>
   </p>
 
+
+<img src="https://github.com/krishpranav/maigret/blob/master/images/maigret.gif"></img>
+
 # Installation
 ```
 git clone https://github.com/krishpranav/maigret
@@ -14,7 +17,3 @@ cd maigret
 go get
 go run maigret.go
 ```
-
-# Reference:
-
-<img src="https://github.com/krishpranav/maigret/blob/master/images/maigret.gif"></img>
