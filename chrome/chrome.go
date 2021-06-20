@@ -21,3 +21,7 @@ func (chrome *Chrome) setLoggerStatus(status bool) {
 		log.SetOutput(ioutil.Discard)
 	}
 }
+
+func (chrome *Chrome) Setup() {
+	chrome.chromeLocator()
+}
