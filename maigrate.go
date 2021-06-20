@@ -9,11 +9,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/dlclark/regexp2"
 	color "github.com/fatih/color"
 	"github.com/krishpranav/maigrate/downloader"
 	"golang.org/x/net/proxy"
@@ -215,7 +217,7 @@ func main() {
 			site := specifiedSites
 
 			if val, ok := _siteData[site]; ok {
-				res := Investigo(username, site, val)
+				res := Maigrate(username, site, val)
 				WriteResult(res)
 			} else {
 				log.Printf("[!] %s is not a valid site.", site)
@@ -233,7 +235,7 @@ func main() {
 				guard <- 1
 				go func(site string) {
 					defer waitGroup.Done()
-					res := Investigo(username, site, siteData[site])
+					res := Maigrate(username, site, siteData[site])
 					WriteResult(res)
 					<-guard
 				}(site)
@@ -335,7 +337,6 @@ func Request(target string) (*http.Response, RequestError) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO: Check whether or not user agent required
 	request.Header.Set("User-Agent", userAgent)
 
 	client := &http.Client{
@@ -377,4 +378,148 @@ func HasElement(array []string, targets ...string) (bool, int) {
 		}
 	}
 	return false, -1
+}
+
+func Maigrate(username string, site string, data SiteData) Result {
+	var u, urlProbe string
+	var result Result
+
+	u = strings.Replace(data.URL, "{}", username, 1)
+
+	if data.URLProbe != "" {
+		urlProbe = strings.Replace(data.URLProbe, "{}", username, 1)
+	} else {
+		urlProbe = u
+	}
+
+	if data.RegexCheck != "" {
+		re := regexp2.MustCompile(data.RegexCheck, 0)
+		if match, _ := re.MatchString(username); !match {
+			return Result{
+				Username: username,
+				URL:      data.URL,
+				Proxied:  options.withTor,
+				Site:     site,
+				Exist:    false,
+				Err:      false,
+			}
+		}
+	}
+
+	r, err := Request(urlProbe)
+
+	if err != nil {
+		if r != nil {
+			r.Body.Close()
+		}
+		return Result{
+			Username: username,
+			URL:      data.URL,
+			URLProbe: data.URLProbe,
+			Proxied:  options.withTor,
+			Exist:    false,
+			Site:     site,
+			Err:      true,
+			ErrMsg:   err.Error(),
+		}
+	}
+
+	// check error types
+	switch data.ErrorType {
+	case "status_code":
+		if r.StatusCode == http.StatusOK {
+			result = Result{
+				Username: username,
+				URL:      data.URL,
+				URLProbe: data.URLProbe,
+				Proxied:  options.withTor,
+				Exist:    true,
+				Link:     u,
+				Site:     site,
+			}
+		} else {
+			result = Result{
+				Username: username,
+				URL:      data.URL,
+				Proxied:  options.withTor,
+				Site:     site,
+				Exist:    false,
+				Err:      false,
+			}
+		}
+	case "message":
+		if !strings.Contains(ReadResponseBody(r), data.ErrorMsg) {
+			result = Result{
+				Username: username,
+				URL:      data.URL,
+				URLProbe: data.URLProbe,
+				Proxied:  options.withTor,
+				Exist:    true,
+				Link:     u,
+				Site:     site,
+			}
+		} else {
+			result = Result{
+				Username: username,
+				URL:      data.URL,
+				Proxied:  options.withTor,
+				Site:     site,
+				Exist:    false,
+				Err:      false,
+			}
+		}
+	case "response_url":
+		if (r.StatusCode <= 300 || r.StatusCode < 200) && r.Request.URL.String() == u {
+			result = Result{
+				Username: username,
+				URL:      data.URL,
+				URLProbe: data.URLProbe,
+				Proxied:  options.withTor,
+				Exist:    true,
+				Link:     u,
+				Site:     site,
+			}
+		} else {
+			result = Result{
+				Username: username,
+				URL:      data.URL,
+				Proxied:  options.withTor,
+				Site:     site,
+				Exist:    false,
+				Err:      false,
+			}
+		}
+	default:
+		result = Result{
+			Username: username,
+			Proxied:  options.withTor,
+			Exist:    false,
+			Err:      true,
+			ErrMsg:   "Unsupported error type `" + data.ErrorType + "`",
+			Site:     site,
+		}
+	}
+
+	if result.Exist && options.withScreenshot {
+		urlParts, _ := url.Parse(urlProbe)
+		folderPath := filepath.Join("screenshots", username)
+		outputPath := filepath.Join(folderPath, urlParts.Host+".png")
+		if err := os.MkdirAll(folderPath, 0755); err != nil {
+			log.Fatal(err)
+		}
+		if err := getScreenshot(screenShotRes, urlProbe, outputPath); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if result.Exist && options.download {
+		// Check if the downloader for this site exists
+		if downloadFunc, ok := downloader.Impls[strings.ToLower(site)]; ok {
+			downloadFunc.(func(string, *log.Logger))(urlProbe, logger)
+		}
+	}
+
+	r.Body.Close()
+
+	return result
 }
