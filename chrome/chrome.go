@@ -34,4 +34,16 @@ func (chrome *Chrome) chromeLocator() {
 		log.Debug("Chrome path exists, skipping search and version check")
 		return
 	}
+
+	paths := []string{
+		"/usr/bin/chromium",
+		"/usr/bin/chromium-browser",
+		"/usr/bin/google-chrome-stable",
+		"/usr/bin/google-chrome",
+		"/usr/bin/chromium-browser",
+		"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+		"/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+		"/Applications/Chromium.app/Contents/MacOS/Chromium",
+		"C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+	}
 }
