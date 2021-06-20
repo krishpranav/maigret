@@ -12,3 +12,5 @@ cd maigret
 go get
 go run maigret.go
 ```
+
+<img src="https://github.com/krishpranav/maigret/blob/master/images/maigret.gif"></img>
