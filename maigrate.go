@@ -74,3 +74,7 @@ type counter struct {
 func (c *counter) Add() {
 	atomic.AddInt32(&c.n, 1)
 }
+
+func (c *counter) Get() int {
+	return int(atomic.LoadInt32(&c.n))
+}
