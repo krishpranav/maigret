@@ -1,5 +1,11 @@
 package chrome
 
+import (
+	"io/ioutil"
+
+	log "github.com/sirupsen/logrus"
+)
+
 type Chrome struct {
 	Resolution       string
 	ChromeTimeout    int
@@ -8,4 +14,10 @@ type Chrome struct {
 	UserAgent        string
 	Argvs            []string
 	ScreenshotPath   string
+}
+
+func (chrome *Chrome) setLoggerStatus(status bool) {
+	if !status {
+		log.SetOutput(ioutil.Discard)
+	}
 }
