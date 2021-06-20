@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"log"
 	"sync"
+	"sync/atomic"
 
 	color "github.com/fatih/color"
 )
@@ -68,4 +69,8 @@ type RequestError interface {
 
 type counter struct {
 	n int32
+}
+
+func (c *counter) Add() {
+	atomic.AddInt32(&c.n, 1)
 }
