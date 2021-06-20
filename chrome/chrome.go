@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -80,4 +81,12 @@ func (chrome *Chrome) checkVersion(lowestVersion string) bool {
 	}
 
 	version := string(out)
+
+	re := regexp.MustCompile(`\d+(\.\d+)+`)
+	match := re.FindStringSubmatch(version)
+	if len(match) <= 0 {
+		log.WithField("chrome-path", chrome.Path).Debug("Unable to determine chrome version")
+
+		return false
+	}
 }
