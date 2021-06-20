@@ -6,13 +6,17 @@ import (
 	"image/color"
 	"io/ioutil"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	color "github.com/fatih/color"
 	"github.com/krishpranav/maigrate/downloader"
+	"golang.org/x/net/proxy"
 )
 
 const (
@@ -324,4 +328,34 @@ func initializeSiteData(forceUpdate bool) {
 	} else {
 		json.Unmarshal([]byte(byteValue), &siteData)
 	}
+}
+
+func Request(target string) (*http.Response, RequestError) {
+	request, err := http.NewRequest("GET", target, nil)
+	if err != nil {
+		return nil, err
+	}
+	// TODO: Check whether or not user agent required
+	request.Header.Set("User-Agent", userAgent)
+
+	client := &http.Client{
+		Timeout: 60 * time.Second,
+	}
+
+	if options.withTor {
+		tbProxyURL, err := url.Parse(torProxyAddress)
+		if err != nil {
+			return nil, err
+		}
+		tbDialer, err := proxy.FromURL(tbProxyURL, proxy.Direct)
+		if err != nil {
+			return nil, err
+		}
+		tbTransport := &http.Transport{
+			Dial: tbDialer.Dial,
+		}
+		client.Transport = tbTransport
+	}
+
+	return client.Do(request)
 }
