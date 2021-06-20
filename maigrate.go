@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"image/color"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -234,5 +236,92 @@ func main() {
 			}
 			waitGroup.Wait()
 		}
+	}
+}
+
+func initializeSiteData(forceUpdate bool) {
+	jsonFile, err := os.Open(dataFileName)
+	if err != nil || forceUpdate {
+		if err != nil {
+			if options.noColor {
+				fmt.Printf(
+					"[!] Cannot open database \"%s\"\n",
+					dataFileName,
+				)
+			} else {
+				fmt.Fprintf(
+					color.Output,
+					"[%s] Cannot open database \"%s\"\n",
+					color.HiRedString("!"), (dataFileName),
+				)
+			}
+		}
+		if options.noColor {
+			fmt.Printf(
+				"%s Update database: %s",
+				("[!]"),
+				("Downloading..."),
+			)
+		} else {
+			fmt.Fprintf(
+				color.Output,
+				"[%s] Update database: %s",
+				color.HiBlueString("!"),
+				color.HiYellowString("Downloading..."),
+			)
+		}
+
+		if forceUpdate {
+			jsonFile.Close()
+		}
+
+		r, err := Request("https://raw.githubusercontent.com/sherlock-project/sherlock/master/sherlock/resources/data.json")
+
+		if err != nil || r.StatusCode != 200 {
+			if options.noColor {
+				fmt.Printf(" [%s]\n", ("Failed"))
+			} else {
+				fmt.Fprintf(color.Output, " [%s]\n", color.HiRedString("Failed"))
+			}
+			if err != nil {
+				panic("Failed to update database.\n" + err.Error())
+			} else {
+				panic("Failed to update database: " + r.Status)
+			}
+		} else {
+			defer r.Body.Close()
+		}
+		if _, err := os.Stat(dataFileName); !os.IsNotExist(err) {
+			if err = os.Remove(dataFileName); err != nil {
+				panic(err)
+			}
+		}
+		_updateFile, _ := os.OpenFile(dataFileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+		if _, err := _updateFile.WriteString(ReadResponseBody(r)); err != nil {
+			if options.noColor {
+				fmt.Printf("Failed to update data.\n")
+			} else {
+				fmt.Fprint(color.Output, color.RedString("Failed to update data.\n"))
+			}
+			panic(err)
+		}
+
+		_updateFile.Close()
+		jsonFile, _ = os.Open(dataFileName)
+
+		if options.noColor {
+			fmt.Println(" [Done]")
+		} else {
+			fmt.Fprintf(color.Output, " [%s]\n", color.GreenString("Done"))
+		}
+	}
+
+	defer jsonFile.Close()
+
+	byteValue, err := ioutil.ReadAll(jsonFile)
+	if err != nil {
+		panic("Error while read " + dataFileName)
+	} else {
+		json.Unmarshal([]byte(byteValue), &siteData)
 	}
 }
