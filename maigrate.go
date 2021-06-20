@@ -3,21 +3,23 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"image/color"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/dlclark/regexp2"
+
 	color "github.com/fatih/color"
-	"github.com/krishpranav/maigrate/downloader"
+	chrm "github.com/krishpranav/maigrate/chrome"
+	downloader "github.com/krishpranav/maigrate/downloader"
 	"golang.org/x/net/proxy"
 )
 
@@ -97,11 +99,14 @@ func parseArguments() []string {
 
 	if help, _ := HasElement(args, "-h", "--help"); help && !options.runTest {
 		fmt.Print(
-			`maigrate - User Osint Across Social Networks.
-usage: maigrate USERNAME [USERNAMES...] flags options
-perform test: maigrate --test
+			`Maigrate - User Osint Across Social Networks.
+
+usage: Maigrate USERNAME [USERNAMES...] flags options
+perform test: Maigrate --test
+
 positional arguments:
         USERNAMES             one or more usernames to investigate
+
 flags:
         -h, --help            show this help message and exit
         --no-color            disable colored stdout output
@@ -110,6 +115,7 @@ flags:
         -s, --screenshot      take a screenshot of each matched urls
         -v, --verbose         verbose output
         -d, --download        download the contents of site if available
+
 options:
         --database DATABASE   use custom database
         --site SITE           specific site to investigate
@@ -119,7 +125,7 @@ options:
 	}
 
 	if len(args) < 1 {
-		fmt.Println("WARNING: You executed maigrate without arguments. Use `-h` flag if you need help.")
+		fmt.Println("WARNING: You executed Maigrate without arguments. Use `-h` flag if you need help.")
 		fmt.Printf("Input username to investigate:")
 		var _usernames string
 		fmt.Scanln(&_usernames)
@@ -169,7 +175,6 @@ options:
 	options.specifySite, argIndex = HasElement(args, "--site")
 	if options.specifySite {
 		specifiedSites = strings.ToLower(args[argIndex+1])
-		// Use verbose output
 		options.verbose = true
 		args = append(args[:argIndex], args[argIndex+2:]...)
 	}
@@ -424,7 +429,6 @@ func Maigrate(username string, site string, data SiteData) Result {
 		}
 	}
 
-	// check error types
 	switch data.ErrorType {
 	case "status_code":
 		if r.StatusCode == http.StatusOK {
@@ -469,6 +473,7 @@ func Maigrate(username string, site string, data SiteData) Result {
 			}
 		}
 	case "response_url":
+
 		if (r.StatusCode <= 300 || r.StatusCode < 200) && r.Request.URL.String() == u {
 			result = Result{
 				Username: username,
@@ -513,7 +518,6 @@ func Maigrate(username string, site string, data SiteData) Result {
 	}
 
 	if result.Exist && options.download {
-		// Check if the downloader for this site exists
 		if downloadFunc, ok := downloader.Impls[strings.ToLower(site)]; ok {
 			downloadFunc.(func(string, *log.Logger))(urlProbe, logger)
 		}
@@ -558,9 +562,7 @@ func getScreenshot(resolution, targetURL, outputPath string) error {
 		ChromeTimeout:    60,
 		ChromeTimeBudget: 60,
 		UserAgent:        userAgent,
-		// ScreenshotPath: "/opt/investigo/data",
 	}
-	// chrome.setLoggerStatus(false)
 	chrome.Setup()
 	u, err := url.ParseRequestURI(targetURL)
 	if err != nil {
@@ -568,4 +570,75 @@ func getScreenshot(resolution, targetURL, outputPath string) error {
 	}
 	chrome.ScreenshotURL(u, outputPath)
 	return nil
+}
+
+func test() {
+	log.Println("Maigrate is activated for checking site validity.")
+
+	if options.withScreenshot {
+		log.Println("Taking screenshot is not available in this sequence. Aborted.")
+		return
+	}
+
+	tc := counter{}
+	waitGroup.Add(len(siteData))
+	for site := range siteData {
+		guard <- 1
+		go func(site string) {
+			defer waitGroup.Done()
+			var _currentContext = siteData[site]
+			_usedUsername := _currentContext.UsedUsername
+			_unusedUsername := _currentContext.UnusedUsername
+
+			_resUsed := Maigrate(_usedUsername, site, siteData[site])
+			_resUnused := Maigrate(_unusedUsername, site, siteData[site])
+
+			if _resUsed.Exist && !_resUnused.Exist {
+				// Works
+			} else {
+				var _errMsg string
+				if _resUsed.Err {
+					_errMsg += fmt.Sprintf("[%s]", _resUsed.ErrMsg)
+				}
+				if _resUnused.Err {
+					_errMsg += fmt.Sprintf("[%s]", _resUnused.ErrMsg)
+				}
+
+				if _errMsg != "" {
+					if options.noColor {
+						logger.Printf("[-] %s: %s %s", site, ("Failed with error"), _errMsg)
+					} else {
+						logger.Printf("[-] %s: %s %s", site, color.RedString("Failed with error"), _errMsg)
+					}
+				} else {
+					if options.noColor {
+						logger.Printf("[-] %s: %s (%s: expected true, but %s, %s: expected false, but %s)",
+							site, ("Not working"),
+							_usedUsername, strconv.FormatBool(_resUsed.Exist),
+							_unusedUsername, strconv.FormatBool(_resUnused.Exist),
+						)
+					} else {
+						logger.Printf("[-] %s: %s (%s: expected true, but %s, %s: expected false, but %s)",
+							site, color.RedString("Not working"),
+							_usedUsername, strconv.FormatBool(_resUsed.Exist),
+							_unusedUsername, strconv.FormatBool(_resUnused.Exist),
+						)
+					}
+				}
+
+				tc.Add()
+			}
+			<-guard
+		}(site)
+	}
+	waitGroup.Wait()
+
+	if options.noColor {
+		fmt.Println("[Done]")
+	} else {
+		fmt.Fprintf(color.Output, "[%s]\n", color.GreenString("Done"))
+	}
+
+	logger.Printf("\nThese %d sites are not compatible with the Sherlock database.\n"+
+		"Please check https://github.com/tdh8316/Maigrate/#to-fix-incompatible-sites", tc.Get())
 }
