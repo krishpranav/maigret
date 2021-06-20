@@ -523,3 +523,31 @@ func Maigrate(username string, site string, data SiteData) Result {
 
 	return result
 }
+
+func WriteResult(result Result) {
+	if options.noColor {
+		if result.Exist {
+			logger.Printf("[%s] %s: %s\n", ("+"), result.Site, result.Link)
+		} else {
+			if options.verbose {
+				if result.Err {
+					logger.Printf("[%s] %s: %s: %s", ("!"), result.Site, ("ERROR"), (result.ErrMsg))
+				} else {
+					logger.Printf("[%s] %s: %s", ("-"), result.Site, ("Not Found!"))
+				}
+			}
+		}
+	} else {
+		if result.Exist {
+			logger.Printf("[%s] %s: %s\n", color.HiGreenString("+"), color.HiWhiteString(result.Site), result.Link)
+		} else {
+			if options.verbose {
+				if result.Err {
+					logger.Printf("[%s] %s: %s: %s", color.HiRedString("!"), result.Site, color.HiMagentaString("ERROR"), color.HiRedString(result.ErrMsg))
+				} else {
+					logger.Printf("[%s] %s: %s", color.HiRedString("-"), result.Site, color.HiYellowString("Not Found!"))
+				}
+			}
+		}
+	}
+}
