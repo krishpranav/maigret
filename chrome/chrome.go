@@ -1,6 +1,7 @@
 package chrome
 
 import (
+	"errors"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -103,4 +104,16 @@ func (chrome *Chrome) checkVersion(lowestVersion string) bool {
 
 	log.WithFields(log.Fields{"chrome-path": chrome.Path, "chromeversion": version}).Debug("Chrome version")
 	return true
+}
+
+func (chrome *Chrome) SetScreenshotPath(p string) error {
+
+	if _, err := os.Stat(p); os.IsNotExist(err) {
+		return errors.New("Destination path does not exist")
+	}
+
+	log.WithField("screenshot-path", p).Debug("Screenshot path")
+	chrome.ScreenshotPath = p
+
+	return nil
 }
