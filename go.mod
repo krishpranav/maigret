@@ -4,7 +4,7 @@ go 1.15
 
 require (
 	github.com/dlclark/regexp2 v1.4.0
-	github.com/fatih/color v1.10.0
+	github.com/fatih/color v1.12.0
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect

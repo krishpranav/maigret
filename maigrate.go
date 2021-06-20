@@ -1,5 +1,13 @@
 package main
 
+import (
+	"image/color"
+	"log"
+	"sync"
+
+	color "github.com/fatih/color"
+)
+
 const (
 	userAgent       string = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36"
 	screenShotRes   string = "1024x768"
@@ -22,3 +30,22 @@ type Result struct {
 	Err      bool
 	ErrMsg   string
 }
+
+var (
+	waitGroup      = &sync.WaitGroup{}
+	logger         = log.New(color.Output, "", 0)
+	siteData       = map[string]SiteData{}
+	dataFileName   = "data.json"
+	specifiedSites string
+	options        struct {
+		noColor         bool
+		verbose         bool
+		updateBeforeRun bool
+		runTest         bool
+		useCustomData   bool
+		withTor         bool
+		withScreenshot  bool
+		specifySite     bool
+		download        bool
+	}
+)
