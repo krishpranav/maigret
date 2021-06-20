@@ -29,8 +29,10 @@ func (chrome *Chrome) Setup() {
 
 func (chrome *Chrome) chromeLocator() {
 	if _, err := os.Stat(chrome.Path); os.IsNotExist(err) {
-		log.WithFields(log.Fields{"user-path": chrome.Path, "error": err}).Debug("Chrome path not set or invalid. Performing search")
+		log.WithFields(log.Fields{"user-path": chrome.Path, "error": err}).
+			Debug("Chrome path not set or invalid. Performing search")
 	} else {
+
 		log.Debug("Chrome path exists, skipping search and version check")
 		return
 	}
@@ -48,6 +50,7 @@ func (chrome *Chrome) chromeLocator() {
 	}
 
 	for _, path := range paths {
+
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			continue
 		}
@@ -58,5 +61,11 @@ func (chrome *Chrome) chromeLocator() {
 		if chrome.checkVersion("60") {
 			break
 		}
+	}
+
+	if chrome.Path == "" {
+		log.Fatal("Unable to locate a valid installation of Chrome to use. gowitness needs at least Chrome/" +
+			"Chrome Canary v60+. Either install Google Chrome or try specifying a valid location with " +
+			"the --chrome-path flag")
 	}
 }
