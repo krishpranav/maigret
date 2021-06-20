@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"regexp"
 
+	gover "github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -76,7 +77,8 @@ func (chrome *Chrome) checkVersion(lowestVersion string) bool {
 
 	out, err := exec.Command(chrome.Path, "-version").Output()
 	if err != nil {
-		log.WithFields(log.Fields{"chrome-path": chrome.Path, "err": err}).Error("An error occured while trying to get the chrome version")
+		log.WithFields(log.Fields{"chrome-path": chrome.Path, "err": err}).
+			Error("An error occurred while trying to get the Chrome version")
 		return false
 	}
 
@@ -85,8 +87,20 @@ func (chrome *Chrome) checkVersion(lowestVersion string) bool {
 	re := regexp.MustCompile(`\d+(\.\d+)+`)
 	match := re.FindStringSubmatch(version)
 	if len(match) <= 0 {
-		log.WithField("chrome-path", chrome.Path).Debug("Unable to determine chrome version")
+		log.WithField("chrome-path", chrome.Path).Debug("Unable to determine Chrome version.")
 
 		return false
 	}
+
+	version = match[0]
+
+	if gover.Compare(version, lowestVersion, "<") {
+		log.WithFields(log.Fields{"chrome-path": chrome.Path, "chromeversion": version}).
+			Warn("Chrome version is older than v" + lowestVersion)
+
+		return false
+	}
+
+	log.WithFields(log.Fields{"chrome-path": chrome.Path, "chromeversion": version}).Debug("Chrome version")
+	return true
 }
