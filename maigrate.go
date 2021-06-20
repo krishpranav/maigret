@@ -61,3 +61,7 @@ type SiteData struct {
 	UnusedUsername string `json:"username_unclaimed"`
 	RegexCheck     string `json:"regexCheck"`
 }
+
+type RequestError interface {
+	Error() string
+}
