@@ -367,3 +367,14 @@ func ReadResponseBody(response *http.Response) string {
 	}
 	return string(bodyBytes)
 }
+
+func HasElement(array []string, targets ...string) (bool, int) {
+	for index, item := range array {
+		for _, target := range targets {
+			if item == target {
+				return true, index
+			}
+		}
+	}
+	return false, -1
+}
