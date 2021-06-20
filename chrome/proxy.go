@@ -36,4 +36,6 @@ func (proxy *forwardingProxy) start() error {
 		return err
 	}
 
+	proxy.port = proxy.listener.Addr().(*net.TCPAddr).Port
+
 }
