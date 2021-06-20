@@ -37,6 +37,7 @@ func (chrome *Chrome) Setup() {
 }
 
 func (chrome *Chrome) chromeLocator() {
+
 	if _, err := os.Stat(chrome.Path); os.IsNotExist(err) {
 		log.WithFields(log.Fields{"user-path": chrome.Path, "error": err}).
 			Debug("Chrome path not set or invalid. Performing search")

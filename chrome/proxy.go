@@ -22,7 +22,7 @@ type forwardingProxy struct {
 
 func (proxy *forwardingProxy) start() error {
 
-	log.WithFields(log.Fields{"target-url": proxy.targetURL}).Debug("Initializing shitty forwarding proxy")
+	log.WithFields(log.Fields{"target-url": proxy.targetURL}).Debug("Initializing requests forwarding proxy")
 
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
@@ -45,7 +45,7 @@ func (proxy *forwardingProxy) start() error {
 	go func() {
 
 		log.WithFields(log.Fields{"target-url": proxy.targetURL, "listen-address": proxy.listener.Addr()}).
-			Debug("Starting shitty forwarding proxy goroutine")
+			Debug("Starting requests forwarding proxy goroutine")
 
 		httpServer := http.NewServeMux()
 		httpServer.HandleFunc("/", proxy.handle)
@@ -56,10 +56,28 @@ func (proxy *forwardingProxy) start() error {
 				return
 			}
 
-			log.WithFields(log.Fields{"err": err}).Error("Shitty forwarding proxy broke")
+			log.WithFields(log.Fields{"err": err}).Error("requests forwarding proxy broke")
 		}
 
 	}()
 
 	return nil
+}
+
+func (proxy *forwardingProxy) handle(w http.ResponseWriter, r *http.Request) {
+
+	log.WithFields(log.Fields{"target-url": proxy.targetURL, "request": r.URL}).
+		Debug("Making proxied request")
+
+	r.Host = proxy.targetURL.Host
+
+	proxy.server.ServeHTTP(w, r)
+}
+
+func (proxy *forwardingProxy) stop() {
+
+	log.WithFields(log.Fields{"target-url": proxy.targetURL, "port": proxy.port}).
+		Debug("Stopping requests forwarding proxy")
+
+	proxy.listener.Close()
 }
