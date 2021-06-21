@@ -640,5 +640,5 @@ func test() {
 	}
 
 	logger.Printf("\nThese %d sites are not compatible with the Sherlock database.\n"+
-		"Please check https://github.com/tdh8316/maigret/#to-fix-incompatible-sites", tc.Get())
+		"Please check https://github.com/krishpranav/maigret/#to-fix-incompatible-sites", tc.Get())
 }
