@@ -385,6 +385,16 @@ func HasElement(array []string, targets ...string) (bool, int) {
 	return false, -1
 }
 
+func getHash(username string, password string, site string) Result {
+	var user string
+	var password string
+	var site string
+
+	if data.url != "" {
+
+	}
+}
+
 func maigret(username string, site string, data SiteData) Result {
 	var u, urlProbe string
 	var result Result
