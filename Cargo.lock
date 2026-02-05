@@ -1007,6 +1007,7 @@ dependencies = [
  "colored",
  "console",
  "fancy-regex",
+ "fastrand",
  "futures",
  "headless_chrome",
  "indicatif",
