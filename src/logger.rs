@@ -1,3 +1,4 @@
+use crate::scraper::ScraperStats;
 use colored::*;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use std::sync::Arc;
@@ -34,6 +35,20 @@ impl Logger {
         }
     }
 
+    pub fn print_found_with_confidence(&self, site: &str, url: &str, status_tag: &str) {
+        if self.no_color {
+            println!("[+] {}: {} {}", site, url, status_tag);
+        } else {
+            println!(
+                "[{}] {}: {} {}",
+                "+".bright_green(),
+                site.bright_white(),
+                url,
+                status_tag.bright_cyan()
+            );
+        }
+    }
+
     pub fn print_not_found(&self, site: &str) {
         if !self.verbose {
             return;
@@ -47,6 +62,20 @@ impl Logger {
                 "-".bright_red(),
                 site,
                 "Not Found!".bright_yellow()
+            );
+        }
+    }
+
+    pub fn print_blocked(&self, site: &str, reason: &str) {
+        if self.no_color {
+            println!("[⊗] {}: BLOCKED: {}", site, reason);
+        } else {
+            println!(
+                "[{}] {}: {}: {}",
+                "⊗".bright_red().bold(),
+                site.bright_white(),
+                "BLOCKED".bright_red().bold(),
+                reason.yellow()
             );
         }
     }
@@ -150,6 +179,102 @@ impl Logger {
             println!(
                 "{}",
                 "═══════════════════════════════════════".bright_cyan()
+            );
+        }
+    }
+
+    pub fn print_intelligence_summary(
+        &self,
+        confirmed: usize,
+        likely: usize,
+        blocked: usize,
+        stats: &ScraperStats,
+    ) {
+        if confirmed == 0 && likely == 0 && blocked == 0 {
+            return;
+        }
+
+        println!();
+        if self.no_color {
+            println!("───────────────────────────────────────");
+            println!("  INTELLIGENCE REPORT");
+            println!("───────────────────────────────────────");
+            if confirmed > 0 {
+                println!("  Confirmed:  {}", confirmed);
+            }
+            if likely > 0 {
+                println!("  Likely:     {}", likely);
+            }
+            if blocked > 0 {
+                println!("  Blocked:    {}", blocked);
+            }
+            if stats.cloudflare_detected > 0 {
+                println!("  Cloudflare: {}", stats.cloudflare_detected);
+            }
+            if let Some((site, duration)) = &stats.fastest_site {
+                println!("  Fastest:    {} ({:.2}s)", site, duration.as_secs_f64());
+            }
+            if let Some((site, duration)) = &stats.slowest_site {
+                println!("  Slowest:    {} ({:.2}s)", site, duration.as_secs_f64());
+            }
+            println!("───────────────────────────────────────");
+        } else {
+            println!(
+                "{}",
+                "───────────────────────────────────────".bright_magenta()
+            );
+            println!("  {}", "🎯 INTELLIGENCE REPORT".bright_white().bold());
+            println!(
+                "{}",
+                "───────────────────────────────────────".bright_magenta()
+            );
+            if confirmed > 0 {
+                println!(
+                    "  {}: {}",
+                    "Confirmed".bright_green().bold(),
+                    confirmed.to_string().bright_white()
+                );
+            }
+            if likely > 0 {
+                println!(
+                    "  {}: {}",
+                    "Likely".bright_yellow(),
+                    likely.to_string().bright_white()
+                );
+            }
+            if blocked > 0 {
+                println!(
+                    "  {}: {}",
+                    "Blocked".bright_red(),
+                    blocked.to_string().bright_white()
+                );
+            }
+            if stats.cloudflare_detected > 0 {
+                println!(
+                    "  {}: {}",
+                    "Cloudflare".bright_cyan(),
+                    stats.cloudflare_detected.to_string().bright_white()
+                );
+            }
+            if let Some((site, duration)) = &stats.fastest_site {
+                println!(
+                    "  {}: {} ({})",
+                    "Fastest".bright_green(),
+                    site.bright_white(),
+                    format!("{:.2}s", duration.as_secs_f64()).bright_cyan()
+                );
+            }
+            if let Some((site, duration)) = &stats.slowest_site {
+                println!(
+                    "  {}: {} ({})",
+                    "Slowest".bright_red(),
+                    site.bright_white(),
+                    format!("{:.2}s", duration.as_secs_f64()).bright_cyan()
+                );
+            }
+            println!(
+                "{}",
+                "───────────────────────────────────────".bright_magenta()
             );
         }
     }
