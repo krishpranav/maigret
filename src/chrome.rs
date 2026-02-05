@@ -66,13 +66,11 @@ impl Chrome {
         let version_str = String::from_utf8_lossy(&output.stdout);
         debug!("Chrome version output: {}", version_str);
 
-        // Extract version number
         let re = regex::Regex::new(r"\d+(\.\d+)+").unwrap();
         if let Some(captures) = re.find(&version_str) {
             let version = captures.as_str();
             debug!("Chrome version: {}", version);
 
-            // Simple version check - just verify it's >= 60
             if let Some(major) = version.split('.').next() {
                 if let Ok(major_num) = major.parse::<u32>() {
                     return Ok(major_num >= 60);
@@ -103,7 +101,6 @@ impl Chrome {
         tab.wait_until_navigated()
             .context("Failed to wait for navigation")?;
 
-        // Wait a bit for page to render
         std::thread::sleep(std::time::Duration::from_secs(2));
 
         let screenshot_data = tab
