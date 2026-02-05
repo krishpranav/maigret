@@ -8,10 +8,10 @@ mod scraper;
 use anyhow::Result;
 use cli::Cli;
 use colored::Colorize;
-use core::{filter_sites, load_site_data};
+use core::{filter_sites, load_site_data, ResultStatus};
 use downloader::DownloaderRegistry;
 use logger::Logger;
-use scraper::Scraper;
+use scraper::{check_with_adaptive_strategy, IntelligentScraper};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Semaphore;
@@ -19,16 +19,12 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Parse CLI arguments
     let args = Cli::parse_args();
 
-    // Initialize logging
     logger::init_tracing(args.verbose);
 
-    // Print banner
     print_banner();
 
-    // Handle --download flag with no usernames (list downloaders)
     if args.download && args.usernames.is_empty() {
         let registry = DownloaderRegistry::new();
         println!("List of sites that can download userdata:");
@@ -42,17 +38,17 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    // Load site database
     let database = load_site_data(&args.database_path(), args.update).await?;
-    info!("Loaded {} sites from database", database.len());
+    info!(
+        "[core] Loaded {} sites from database",
+        database.len().to_string().bright_cyan()
+    );
 
-    // Handle test mode
     if args.test {
         run_tests(&args, &database).await?;
         return Ok(());
     }
 
-    // Run normal scan mode
     for username in &args.usernames {
         scan_username(username, &args, &database).await?;
     }
@@ -64,7 +60,6 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
     let logger = Logger::new(args.no_color, args.verbose);
     logger.print_banner(username);
 
-    // Filter sites if specific site requested
     let sites = filter_sites(database, args.site.as_deref());
 
     if sites.is_empty() {
@@ -72,10 +67,9 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
         return Ok(());
     }
 
-    // Initialize scraper
-    let scraper = Arc::new(Scraper::new(args.tor)?);
+    let proxy_pool = Vec::new();
+    let scraper = Arc::new(IntelligentScraper::new(args.tor, proxy_pool)?);
 
-    // Initialize Chrome if screenshots enabled
     let chrome = if args.screenshot {
         let mut chrome = chrome::Chrome::new(
             "1024x768".to_string(),
@@ -88,21 +82,20 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
         None
     };
 
-    // Initialize downloader registry
     let downloader_registry = if args.download {
         Some(Arc::new(DownloaderRegistry::new()))
     } else {
         None
     };
 
-    // Create semaphore for concurrency control
     let semaphore = Arc::new(Semaphore::new(args.max_workers()));
 
-    // Track results
     let found_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let confirmed_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let likely_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let blocked_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let start_time = Instant::now();
 
-    // Spawn tasks for each site
     let mut tasks = Vec::new();
 
     for (site_name, site_data) in sites.iter() {
@@ -112,6 +105,9 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
         let scraper = Arc::clone(&scraper);
         let semaphore = Arc::clone(&semaphore);
         let found_count = Arc::clone(&found_count);
+        let confirmed_count = Arc::clone(&confirmed_count);
+        let likely_count = Arc::clone(&likely_count);
+        let blocked_count = Arc::clone(&blocked_count);
         let chrome = chrome.clone();
         let downloader_registry = downloader_registry.clone();
         let args = args.clone();
@@ -120,17 +116,28 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
         let task = tokio::spawn(async move {
             let _permit = semaphore.acquire().await.unwrap();
 
-            let result = scraper::check_username_with_retry(
-                &scraper, &username, &site_name, &site_data, args.tor, 2, // max retries
+            let result = check_with_adaptive_strategy(
+                &scraper, &username, &site_name, &site_data, args.tor, 2,
             )
             .await;
 
-            // Print result
+            match result.status {
+                ResultStatus::Confirmed => {
+                    confirmed_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }
+                ResultStatus::Likely => {
+                    likely_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }
+                ResultStatus::Blocked => {
+                    blocked_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }
+                _ => {}
+            }
+
             if result.exist {
                 found_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                logger.print_found(&site_name, &result.link);
+                logger.print_found_with_confidence(&site_name, &result.link, &result.status_tag());
 
-                // Take screenshot if enabled
                 if let Some(chrome) = chrome {
                     if let Err(e) =
                         chrome::take_screenshot(&username, &site_name, &result.link, &chrome)
@@ -140,15 +147,18 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
                     }
                 }
 
-                // Download content if enabled
                 if let Some(registry) = downloader_registry {
                     if let Err(e) = registry.download(&site_name, &result.link, &username).await {
                         logger.print_warning(&format!("Download failed for {}: {}", site_name, e));
                     }
                 }
             } else if result.error {
-                logger.print_error(&site_name, &result.error_msg);
-            } else {
+                if result.status == ResultStatus::Blocked {
+                    logger.print_blocked(&site_name, &result.error_msg);
+                } else {
+                    logger.print_error(&site_name, &result.error_msg);
+                }
+            } else if args.verbose {
                 logger.print_not_found(&site_name);
             }
         });
@@ -156,15 +166,20 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
         tasks.push(task);
     }
 
-    // Wait for all tasks to complete
     for task in tasks {
         let _ = task.await;
     }
 
-    // Print summary
+    let stats = scraper.get_stats();
+
     let elapsed = start_time.elapsed();
     let found = found_count.load(std::sync::atomic::Ordering::SeqCst);
+    let confirmed = confirmed_count.load(std::sync::atomic::Ordering::SeqCst);
+    let likely = likely_count.load(std::sync::atomic::Ordering::SeqCst);
+    let blocked = blocked_count.load(std::sync::atomic::Ordering::SeqCst);
+
     logger.print_summary(found, sites.len(), elapsed);
+    logger.print_intelligence_summary(confirmed, likely, blocked, &stats);
 
     Ok(())
 }
@@ -179,7 +194,8 @@ async fn run_tests(args: &Cli, database: &core::SiteDatabase) -> Result<()> {
         return Ok(());
     }
 
-    let scraper = Arc::new(Scraper::new(args.tor)?);
+    let proxy_pool = Vec::new();
+    let scraper = Arc::new(IntelligentScraper::new(args.tor, proxy_pool)?);
     let semaphore = Arc::new(Semaphore::new(args.max_workers()));
     let failed_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
 
@@ -198,20 +214,26 @@ async fn run_tests(args: &Cli, database: &core::SiteDatabase) -> Result<()> {
             let _permit = semaphore.acquire().await.unwrap();
 
             let used_result = scraper
-                .check_username(&site_data.username_claimed, &site_name, &site_data, use_tor)
+                .check_username_intelligent(
+                    &site_data.username_claimed,
+                    &site_name,
+                    &site_data,
+                    use_tor,
+                    scraper::ScrapingStrategy::Fast,
+                )
                 .await;
 
             let unused_result = scraper
-                .check_username(
+                .check_username_intelligent(
                     &site_data.username_unclaimed,
                     &site_name,
                     &site_data,
                     use_tor,
+                    scraper::ScrapingStrategy::Fast,
                 )
                 .await;
 
             if used_result.exist && !unused_result.exist {
-                // Site works correctly
             } else {
                 failed_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
