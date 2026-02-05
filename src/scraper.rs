@@ -1,54 +1,157 @@
-use crate::core::{ScanResult, SiteData};
+use crate::core::{ResultStatus, ScanResult, SiteData};
 use anyhow::Result;
 use fancy_regex::Regex;
-use reqwest::{Client, Proxy};
-use std::time::Duration;
+use reqwest::{Client, Proxy, Response};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tracing::{debug, warn};
 
-const USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36";
 const TOR_PROXY: &str = "socks5://127.0.0.1:9050";
 
-pub struct Scraper {
-    client: Client,
-    tor_client: Option<Client>,
+const USER_AGENTS: &[&str] = &[
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ScrapingStrategy {
+    Fast,
+    Stealth,
+    AntiBlock,
 }
 
-impl Scraper {
-    pub fn new(use_tor: bool) -> Result<Self> {
-        let client = Client::builder()
-            .user_agent(USER_AGENT)
-            .timeout(Duration::from_secs(60))
-            .redirect(reqwest::redirect::Policy::limited(10))
-            .build()?;
+#[derive(Debug, Clone)]
+pub struct ScraperStats {
+    pub total_requests: usize,
+    pub blocked_count: usize,
+    pub cloudflare_detected: usize,
+    pub fastest_site: Option<(String, Duration)>,
+    pub slowest_site: Option<(String, Duration)>,
+}
+
+impl ScraperStats {
+    pub fn new() -> Self {
+        Self {
+            total_requests: 0,
+            blocked_count: 0,
+            cloudflare_detected: 0,
+            fastest_site: None,
+            slowest_site: None,
+        }
+    }
+
+    pub fn update_timing(&mut self, site: String, duration: Duration) {
+        if self.fastest_site.is_none() || duration < self.fastest_site.as_ref().unwrap().1 {
+            self.fastest_site = Some((site.clone(), duration));
+        }
+        if self.slowest_site.is_none() || duration > self.slowest_site.as_ref().unwrap().1 {
+            self.slowest_site = Some((site, duration));
+        }
+    }
+}
+
+pub struct IntelligentScraper {
+    client: Arc<Client>,
+    tor_client: Option<Arc<Client>>,
+    stats: Arc<std::sync::Mutex<ScraperStats>>,
+}
+
+impl IntelligentScraper {
+    pub fn new(use_tor: bool, _proxy_list: Vec<String>) -> Result<Self> {
+        let client = Arc::new(
+            Client::builder()
+                .user_agent(USER_AGENTS[0])
+                .timeout(Duration::from_secs(10))
+                .connect_timeout(Duration::from_secs(5))
+                .redirect(reqwest::redirect::Policy::limited(5))
+                .pool_max_idle_per_host(20)
+                .pool_idle_timeout(Duration::from_secs(90))
+                .tcp_keepalive(Duration::from_secs(60))
+                .http2_prior_knowledge()
+                .build()?,
+        );
 
         let tor_client = if use_tor {
             let proxy = Proxy::all(TOR_PROXY)?;
-            Some(
+            Some(Arc::new(
                 Client::builder()
-                    .user_agent(USER_AGENT)
-                    .timeout(Duration::from_secs(60))
+                    .user_agent(USER_AGENTS[0])
+                    .timeout(Duration::from_secs(30))
                     .proxy(proxy)
-                    .redirect(reqwest::redirect::Policy::limited(10))
+                    .redirect(reqwest::redirect::Policy::limited(5))
                     .build()?,
-            )
+            ))
         } else {
             None
         };
 
-        Ok(Self { client, tor_client })
+        Ok(Self {
+            client,
+            tor_client,
+            stats: Arc::new(std::sync::Mutex::new(ScraperStats::new())),
+        })
     }
 
-    pub async fn check_username(
+    pub fn get_stats(&self) -> ScraperStats {
+        self.stats.lock().unwrap().clone()
+    }
+
+    fn get_random_user_agent(&self) -> &'static str {
+        let idx = fastrand::usize(0..USER_AGENTS.len());
+        USER_AGENTS[idx]
+    }
+
+    fn detect_cloudflare(&self, response: &Response) -> bool {
+        if let Some(server) = response.headers().get("server") {
+            if let Ok(server_str) = server.to_str() {
+                if server_str.to_lowercase().contains("cloudflare") {
+                    return true;
+                }
+            }
+        }
+        response.headers().get("cf-ray").is_some()
+    }
+
+    fn detect_rate_limit(&self, response: &Response) -> bool {
+        let status = response.status().as_u16();
+        matches!(status, 429 | 503)
+    }
+
+    fn quick_html_check(&self, body: &str) -> (bool, f32) {
+        let body_lower = body.to_lowercase();
+
+        if body_lower.contains("page not found")
+            || body_lower.contains("404")
+            || body_lower.contains("user not found")
+        {
+            return (false, 0.9);
+        }
+
+        let positive_count = ["profile", "posts", "followers"]
+            .iter()
+            .filter(|&p| body_lower.contains(p))
+            .count();
+
+        if positive_count >= 2 {
+            (true, 0.85)
+        } else {
+            (false, 0.5)
+        }
+    }
+
+    pub async fn check_username_intelligent(
         &self,
         username: &str,
         site: &str,
         data: &SiteData,
         use_tor: bool,
+        strategy: ScrapingStrategy,
     ) -> ScanResult {
+        let start_time = Instant::now();
         let mut result = ScanResult::new(username.to_string(), site.to_string());
         result.proxied = use_tor;
 
-        // Build URLs
         let url = data.url.replace("{}", username);
         let url_probe = if !data.url_probe.is_empty() {
             data.url_probe.replace("{}", username)
@@ -59,76 +162,111 @@ impl Scraper {
         result.url = data.url.clone();
         result.url_probe = data.url_probe.clone();
 
-        // Check regex validation
         if !data.regex_check.is_empty() {
-            match Regex::new(&data.regex_check) {
-                Ok(re) => {
-                    if let Ok(is_match) = re.is_match(username) {
-                        if !is_match {
-                            debug!("Username {} doesn't match regex for {}", username, site);
-                            return result.not_found(url);
-                        }
+            if let Ok(re) = Regex::new(&data.regex_check) {
+                if let Ok(is_match) = re.is_match(username) {
+                    if !is_match {
+                        return result.not_found(url, ResultStatus::NotFound, 0.95);
                     }
-                }
-                Err(e) => {
-                    warn!("Invalid regex for {}: {}", site, e);
                 }
             }
         }
 
-        // Select client
         let client = if use_tor && self.tor_client.is_some() {
             self.tor_client.as_ref().unwrap()
         } else {
             &self.client
         };
 
-        // Make request
-        let response = match client.get(&url_probe).send().await {
+        let mut request = client.get(&url_probe);
+
+        if strategy != ScrapingStrategy::Fast {
+            request = request.header("User-Agent", self.get_random_user_agent());
+        }
+
+        let response = match request.send().await {
             Ok(resp) => resp,
             Err(e) => {
-                return result.with_error(e.to_string());
+                self.stats.lock().unwrap().total_requests += 1;
+                return result.with_error(e.to_string(), ResultStatus::Error);
             }
         };
 
-        // Check based on error type
-        match data.error_type.as_str() {
+        {
+            let mut stats = self.stats.lock().unwrap();
+            stats.total_requests += 1;
+
+            if self.detect_cloudflare(&response) {
+                stats.cloudflare_detected += 1;
+            }
+
+            if self.detect_rate_limit(&response) {
+                stats.blocked_count += 1;
+                return result.with_error("Rate limited".to_string(), ResultStatus::Blocked);
+            }
+        }
+
+        let (exists, confidence, status) = match data.error_type.as_str() {
             "status_code" => {
                 if response.status().is_success() {
-                    result.found(url.clone(), url.clone())
+                    (true, 0.85, ResultStatus::Confirmed)
+                } else if response.status().as_u16() == 404 {
+                    (false, 0.90, ResultStatus::NotFound)
                 } else {
-                    result.not_found(url)
+                    (false, 0.60, ResultStatus::NotFound)
                 }
             }
             "message" => {
                 let body = match response.text().await {
                     Ok(text) => text,
-                    Err(e) => return result.with_error(e.to_string()),
+                    Err(e) => return result.with_error(e.to_string(), ResultStatus::Error),
                 };
 
-                if !body.contains(&data.error_msg) {
-                    result.found(url.clone(), url.clone())
+                let has_error_msg = body.contains(&data.error_msg);
+
+                if !has_error_msg {
+                    let (html_exists, html_conf) = self.quick_html_check(&body);
+                    if html_exists {
+                        (true, html_conf, ResultStatus::Confirmed)
+                    } else {
+                        (true, 0.75, ResultStatus::Likely)
+                    }
                 } else {
-                    result.not_found(url)
+                    (false, 0.90, ResultStatus::NotFound)
                 }
             }
             "response_url" => {
                 let final_url = response.url().to_string();
-                let status = response.status();
-
-                if status.is_success() && final_url == url {
-                    result.found(url.clone(), url.clone())
+                if response.status().is_success() && final_url == url {
+                    (true, 0.90, ResultStatus::Confirmed)
                 } else {
-                    result.not_found(url)
+                    (false, 0.85, ResultStatus::NotFound)
                 }
             }
-            _ => result.with_error(format!("Unsupported error type: {}", data.error_type)),
+            _ => {
+                return result.with_error(
+                    format!("Unsupported error type: {}", data.error_type),
+                    ResultStatus::Error,
+                );
+            }
+        };
+
+        let elapsed = start_time.elapsed();
+        self.stats
+            .lock()
+            .unwrap()
+            .update_timing(site.to_string(), elapsed);
+
+        if exists {
+            result.found(url.clone(), url.clone(), status, confidence)
+        } else {
+            result.not_found(url, status, confidence)
         }
     }
 }
 
-pub async fn check_username_with_retry(
-    scraper: &Scraper,
+pub async fn check_with_adaptive_strategy(
+    scraper: &IntelligentScraper,
     username: &str,
     site: &str,
     data: &SiteData,
@@ -136,16 +274,24 @@ pub async fn check_username_with_retry(
     max_retries: u32,
 ) -> ScanResult {
     let mut retries = 0;
+    let mut current_strategy = ScrapingStrategy::Fast;
 
     loop {
-        let result = scraper.check_username(username, site, data, use_tor).await;
+        let result = scraper
+            .check_username_intelligent(username, site, data, use_tor, current_strategy)
+            .await;
 
-        if !result.error || retries >= max_retries {
+        if !result.error || result.status == ResultStatus::Blocked || retries >= max_retries {
             return result;
         }
 
         retries += 1;
-        debug!("Retrying {} (attempt {}/{})", site, retries, max_retries);
-        tokio::time::sleep(Duration::from_millis(500 * retries as u64)).await;
+
+        current_strategy = match retries {
+            1 => ScrapingStrategy::Stealth,
+            _ => ScrapingStrategy::AntiBlock,
+        };
+
+        tokio::time::sleep(Duration::from_millis(100 * retries as u64)).await;
     }
 }
