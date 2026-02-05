@@ -19,7 +19,6 @@ impl DownloaderRegistry {
             downloaders: HashMap::new(),
         };
 
-        // Register Instagram downloader
         registry.register("instagram", download_instagram_wrapper);
 
         registry
@@ -60,7 +59,6 @@ async fn download_instagram(url: String, username: String) -> Result<()> {
     let output_dir = PathBuf::from("downloads").join(&username).join("instagram");
     fs::create_dir_all(&output_dir).context("Failed to create download directory")?;
 
-    // Fetch Instagram profile data
     let api_url = format!("{}?__a=1", url);
     let client = reqwest::Client::new();
 
@@ -85,7 +83,6 @@ async fn download_instagram(url: String, username: String) -> Result<()> {
 
     let mut download_urls = Vec::new();
 
-    // Extract profile picture
     if let Some(profile_pic) = data
         .get("graphql")
         .and_then(|g| g.get("user"))
@@ -95,7 +92,6 @@ async fn download_instagram(url: String, username: String) -> Result<()> {
         download_urls.push(profile_pic.to_string());
     }
 
-    // Extract posts
     if let Some(edges) = data
         .get("graphql")
         .and_then(|g| g.get("user"))
@@ -122,7 +118,6 @@ async fn download_instagram(url: String, username: String) -> Result<()> {
         }
     }
 
-    // Download all files concurrently
     let tasks: Vec<_> = download_urls
         .into_iter()
         .enumerate()
@@ -146,7 +141,6 @@ async fn download_file(url: &str, output_dir: &PathBuf, index: usize) -> Result<
     let client = reqwest::Client::new();
     let response = client.get(url).send().await?;
 
-    // Extract file extension from URL
     let ext = url
         .split('?')
         .next()
