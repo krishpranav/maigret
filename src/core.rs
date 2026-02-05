@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-// Custom deserializer for errorMsg that can be either a string or array of strings
 fn deserialize_error_msg<'de, D>(deserializer: D) -> Result<String, D::Error>
 where
     D: Deserializer<'de>,
@@ -18,7 +17,7 @@ where
 
     match StringOrVec::deserialize(deserializer)? {
         StringOrVec::String(s) => Ok(s),
-        StringOrVec::Vec(v) => Ok(v.join("|")), // Join multiple error messages with |
+        StringOrVec::Vec(v) => Ok(v.join("|")),
     }
 }
 
@@ -56,6 +55,42 @@ pub struct SiteData {
     pub regex_check: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResultStatus {
+    Confirmed,
+    Likely,
+    Private,
+    NotFound,
+    Blocked,
+    Soft404,
+    Redirected,
+    Error,
+}
+
+impl ResultStatus {
+    pub fn as_tag(&self) -> &'static str {
+        match self {
+            ResultStatus::Confirmed => "CONFIRMED",
+            ResultStatus::Likely => "LIKELY",
+            ResultStatus::Private => "PRIVATE",
+            ResultStatus::NotFound => "NOT_FOUND",
+            ResultStatus::Blocked => "BLOCKED",
+            ResultStatus::Soft404 => "SOFT_404",
+            ResultStatus::Redirected => "REDIRECTED",
+            ResultStatus::Error => "ERROR",
+        }
+    }
+
+    pub fn is_found(&self) -> bool {
+        matches!(
+            self,
+            ResultStatus::Confirmed | ResultStatus::Likely | ResultStatus::Private
+        )
+    }
+}
+
+pub type ConfidenceScore = f32;
+
 #[derive(Debug, Clone)]
 pub struct ScanResult {
     pub username: String,
@@ -67,6 +102,8 @@ pub struct ScanResult {
     pub proxied: bool,
     pub error: bool,
     pub error_msg: String,
+    pub status: ResultStatus,
+    pub confidence: ConfidenceScore,
 }
 
 impl ScanResult {
@@ -81,26 +118,57 @@ impl ScanResult {
             proxied: false,
             error: false,
             error_msg: String::new(),
+            status: ResultStatus::NotFound,
+            confidence: 0.0,
         }
     }
 
-    pub fn with_error(mut self, error_msg: String) -> Self {
+    pub fn with_error(mut self, error_msg: String, status: ResultStatus) -> Self {
         self.error = true;
         self.error_msg = error_msg;
+        self.status = status;
+        self.confidence = 0.0;
         self
     }
 
-    pub fn found(mut self, url: String, link: String) -> Self {
+    pub fn found(
+        mut self,
+        url: String,
+        link: String,
+        status: ResultStatus,
+        confidence: ConfidenceScore,
+    ) -> Self {
         self.exist = true;
         self.url = url;
         self.link = link;
+        self.status = status;
+        self.confidence = confidence.clamp(0.0, 1.0);
         self
     }
 
-    pub fn not_found(mut self, url: String) -> Self {
+    pub fn not_found(
+        mut self,
+        url: String,
+        status: ResultStatus,
+        confidence: ConfidenceScore,
+    ) -> Self {
         self.exist = false;
         self.url = url;
+        self.status = status;
+        self.confidence = confidence.clamp(0.0, 1.0);
         self
+    }
+
+    pub fn status_tag(&self) -> String {
+        if self.confidence > 0.0 {
+            format!(
+                "[{}] (confidence: {:.2})",
+                self.status.as_tag(),
+                self.confidence
+            )
+        } else {
+            format!("[{}]", self.status.as_tag())
+        }
     }
 }
 
@@ -143,7 +211,6 @@ async fn update_database(path: &str) -> Result<()> {
 
     let content = response.text().await?;
 
-    // Remove existing file if it exists
     if Path::new(path).exists() {
         fs::remove_file(path)?;
     }
