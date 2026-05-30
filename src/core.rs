@@ -197,7 +197,7 @@ async fn update_database(path: &str) -> Result<()> {
         "Downloading...".bright_yellow()
     );
 
-    let url = "https://raw.githubusercontent.com/sherlock-project/sherlock/master/sherlock/resources/data.json";
+    let url = "https://raw.githubusercontent.com/sherlock-project/sherlock/master/sherlock_project/resources/data.json";
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
