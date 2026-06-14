@@ -5,17 +5,39 @@ mod downloader;
 mod logger;
 mod scraper;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use cli::Cli;
 use colored::Colorize;
 use core::{filter_sites, load_site_data, ResultStatus};
 use downloader::DownloaderRegistry;
 use logger::Logger;
 use scraper::{check_with_adaptive_strategy, IntelligentScraper};
+use serde::Serialize;
+use std::fs;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::Semaphore;
 use tracing::info;
+
+#[derive(Debug, Serialize)]
+struct UsernameScanReport {
+    username: String,
+    checked: usize,
+    found: usize,
+    confirmed: usize,
+    likely: usize,
+    blocked: usize,
+    elapsed_secs: f64,
+    results: Vec<core::ScanResult>,
+}
+
+#[derive(Debug, Serialize)]
+struct ScanReport {
+    generated_at: String,
+    database_sites: usize,
+    usernames: Vec<UsernameScanReport>,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -49,22 +71,42 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    let mut reports = Vec::new();
+
     for username in &args.usernames {
-        scan_username(username, &args, &database).await?;
+        reports.push(scan_username(username, &args, &database).await?);
+    }
+
+    if let Some(output_path) = &args.output {
+        write_scan_report(output_path, database.len(), reports)?;
     }
 
     Ok(())
 }
 
-async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase) -> Result<()> {
+async fn scan_username(
+    username: &str,
+    args: &Cli,
+    database: &core::SiteDatabase,
+) -> Result<UsernameScanReport> {
     let logger = Logger::new(args.no_color, args.verbose);
     logger.print_banner(username);
 
     let sites = filter_sites(database, args.site.as_deref());
+    let start_time = Instant::now();
 
     if sites.is_empty() {
         logger.print_error("site", "No matching sites found");
-        return Ok(());
+        return Ok(UsernameScanReport {
+            username: username.to_string(),
+            checked: 0,
+            found: 0,
+            confirmed: 0,
+            likely: 0,
+            blocked: 0,
+            elapsed_secs: start_time.elapsed().as_secs_f64(),
+            results: Vec::new(),
+        });
     }
 
     let proxy_pool = Vec::new();
@@ -94,8 +136,6 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
     let confirmed_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let likely_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
     let blocked_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-    let start_time = Instant::now();
-
     let mut tasks = Vec::new();
 
     for (site_name, site_data) in sites.iter() {
@@ -161,13 +201,18 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
             } else if args.verbose {
                 logger.print_not_found(&site_name);
             }
+
+            result
         });
 
         tasks.push(task);
     }
 
+    let mut results = Vec::with_capacity(tasks.len());
     for task in tasks {
-        let _ = task.await;
+        if let Ok(result) = task.await {
+            results.push(result);
+        }
     }
 
     let stats = scraper.get_stats();
@@ -180,6 +225,42 @@ async fn scan_username(username: &str, args: &Cli, database: &core::SiteDatabase
 
     logger.print_summary(found, sites.len(), elapsed);
     logger.print_intelligence_summary(confirmed, likely, blocked, &stats);
+
+    Ok(UsernameScanReport {
+        username: username.to_string(),
+        checked: sites.len(),
+        found,
+        confirmed,
+        likely,
+        blocked,
+        elapsed_secs: elapsed.as_secs_f64(),
+        results,
+    })
+}
+
+fn write_scan_report(
+    output_path: &str,
+    database_sites: usize,
+    usernames: Vec<UsernameScanReport>,
+) -> Result<()> {
+    let report = ScanReport {
+        generated_at: chrono::Utc::now().to_rfc3339(),
+        database_sites,
+        usernames,
+    };
+
+    if let Some(parent) = Path::new(output_path).parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create report directory: {:?}", parent))?;
+        }
+    }
+
+    let content = serde_json::to_string_pretty(&report)?;
+    fs::write(output_path, content)
+        .with_context(|| format!("Failed to write scan report: {}", output_path))?;
+
+    println!("Report written to {}", output_path);
 
     Ok(())
 }

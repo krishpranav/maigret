@@ -18,6 +18,7 @@ A high-performance username investigation tool that searches across 2000+ social
 - 🔒 **Privacy-Focused**: Optional Tor proxy support for anonymous scanning
 - 📸 **Screenshot Capture**: Automated headless Chrome screenshots of found profiles
 - 📥 **Content Download**: Download profile data from supported sites (Instagram, etc.)
+- 🧾 **JSON Reports**: Save scan results to a machine-readable report file
 - 🧪 **Site Validation**: Built-in test mode to verify site configurations
 
 ## 🚀 Installation
@@ -97,6 +98,12 @@ maigret user --download
 maigret user --update
 ```
 
+### Save JSON Report
+
+```bash
+maigret user --output report.json
+```
+
 ### Test Mode (Validate Site Configurations)
 
 ```bash
@@ -148,6 +155,7 @@ maigret --help
 | `--tor` | `-t` | Use Tor proxy (127.0.0.1:9050) |
 | `--screenshot` | `-s` | Take screenshots of found profiles |
 | `--download` | `-d` | Download profile content |
+| `--output <FILE>` | `-o` | Save scan results as JSON |
 | `--update` | | Update site database from Sherlock |
 | `--database <PATH>` | | Use custom database file |
 | `--site <SITE>` | | Check specific site only |

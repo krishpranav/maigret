@@ -35,6 +35,9 @@ pub struct Cli {
     #[arg(long = "site", value_name = "SITE")]
     pub site: Option<String>,
 
+    #[arg(short = 'o', long = "output", value_name = "FILE")]
+    pub output: Option<String>,
+
     #[arg(long = "test")]
     pub test: bool,
 }
