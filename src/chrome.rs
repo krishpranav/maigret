@@ -86,9 +86,13 @@ impl Chrome {
     pub fn screenshot_url(&self, url: &str, output_path: &Path) -> Result<()> {
         info!("Taking screenshot: {} -> {:?}", url, output_path);
 
+        let window_size = parse_resolution(&self.resolution).unwrap_or((1024, 768));
+        let _timeout = self.timeout;
+        let _user_agent = &self.user_agent;
+
         let launch_options = LaunchOptionsBuilder::default()
             .headless(true)
-            .window_size(Some((1024, 768)))
+            .window_size(Some(window_size))
             .build()
             .context("Failed to build Chrome launch options")?;
 
@@ -124,7 +128,12 @@ impl Chrome {
     }
 }
 
-pub fn take_screenshot(username: &str, site: &str, url: &str, chrome: &Chrome) -> Result<()> {
+fn parse_resolution(resolution: &str) -> Option<(u32, u32)> {
+    let (width, height) = resolution.split_once('x')?;
+    Some((width.parse().ok()?, height.parse().ok()?))
+}
+
+pub fn take_screenshot(username: &str, _site: &str, url: &str, chrome: &Chrome) -> Result<()> {
     let folder_path = PathBuf::from("screenshots").join(username);
     std::fs::create_dir_all(&folder_path).context("Failed to create screenshot directory")?;
 

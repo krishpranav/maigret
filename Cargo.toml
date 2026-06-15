@@ -1,5 +1,5 @@
 [package]
-name = "maigret"
+name = "vesper"
 version = "2.0.0"
 edition = "2021"
 authors = ["Krisna Pranav <krisna.pranav@gmail.com>"]
@@ -51,5 +51,5 @@ default = ["screenshots"]
 screenshots = ["headless_chrome"]
 
 [[bin]]
-name = "maigret"
+name = "vesper"
 path = "src/main.rs"

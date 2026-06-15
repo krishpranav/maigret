@@ -56,6 +56,7 @@ pub struct SiteData {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum ResultStatus {
     Confirmed,
     Likely,
@@ -81,6 +82,7 @@ impl ResultStatus {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_found(&self) -> bool {
         matches!(
             self,

@@ -4,7 +4,6 @@ use fancy_regex::Regex;
 use reqwest::{Client, Proxy, Response};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::{debug, warn};
 
 const TOR_PROXY: &str = "socks5://127.0.0.1:9050";
 

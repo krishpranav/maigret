@@ -1,13 +1,13 @@
-# maigret
+# vesper
 
-**Professional OSINT Username Scanner - Rust Edition**
+**vesper — Professional OSINT Username Scanner**
 
-A high-performance username investigation tool that searches across 2000+ social networks and websites. This is a complete Rust port of the original Go implementation, featuring enhanced CLI aesthetics, async concurrency, and professional-grade logging.
+A high-performance username investigation tool that searches across 2000+ social networks and websites. Built in Rust with async concurrency, a polished CLI, and professional-grade logging.
 
 [![forthebadge](https://forthebadge.com/images/badges/made-with-rust.svg)](https://forthebadge.com)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/krishpranav/maigret/master/images/maigret.png" height="200"/>
+  <img src="https://raw.githubusercontent.com/krishpranav/vesper/master/images/vesper.png" height="200"/>
 </p>
 
 ## ✨ Features
@@ -31,12 +31,12 @@ A high-performance username investigation tool that searches across 2000+ social
 ### Build from Source
 
 ```bash
-git clone https://github.com/krishpranav/maigret
-cd maigret
+git clone https://github.com/krishpranav/vesper
+cd vesper
 cargo build --release
 ```
 
-The compiled binary will be available at `./target/release/maigret`
+The compiled binary will be available at `./target/release/vesper`
 
 ### Install Globally
 
@@ -49,25 +49,25 @@ cargo install --path .
 ### Basic Scan
 
 ```bash
-maigret krishpranav
+vesper krishpranav
 ```
 
 ### Scan Multiple Usernames
 
 ```bash
-maigret krishpranav blue red
+vesper krishpranav blue red
 ```
 
 ### Verbose Output (Show Not Found Sites)
 
 ```bash
-maigret user -v
+vesper user -v
 ```
 
 ### Specific Site Only
 
 ```bash
-maigret user --site github
+vesper user --site github
 ```
 
 ### With Tor Proxy
@@ -75,13 +75,13 @@ maigret user --site github
 Requires Tor running on `127.0.0.1:9050`
 
 ```bash
-maigret user --tor
+vesper user --tor
 ```
 
 ### Capture Screenshots
 
 ```bash
-maigret user --screenshot
+vesper user --screenshot
 ```
 
 Screenshots will be saved to `screenshots/<username>/`
@@ -89,44 +89,44 @@ Screenshots will be saved to `screenshots/<username>/`
 ### Download Content
 
 ```bash
-maigret user --download
+vesper user --download
 ```
 
 ### Update Database
 
 ```bash
-maigret user --update
+vesper user --update
 ```
 
 ### Save JSON Report
 
 ```bash
-maigret user --output report.json
+vesper user --output report.json
 ```
 
 ### Test Mode (Validate Site Configurations)
 
 ```bash
-maigret --test
+vesper --test
 ```
 
 ### All Options
 
 ```bash
-maigret --help
+vesper --help
 ```
 
 ## 🎯 Example Output
 
 ```
-    ███╗   ███╗ █████╗ ██╗ ██████╗ ██████╗ ███████╗████████╗
-    ████╗ ████║██╔══██╗██║██╔════╝ ██╔══██╗██╔════╝╚══██╔══╝
-    ██╔████╔██║███████║██║██║  ███╗██████╔╝█████╗     ██║   
-    ██║╚██╔╝██║██╔══██║██║██║   ██║██╔══██╗██╔══╝     ██║   
-    ██║ ╚═╝ ██║██║  ██║██║╚██████╔╝██║  ██║███████╗   ██║   
-    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝   ╚═╝   
+    ██╗   ██╗ ███████╗ ██████╗ ██████╗ ███████╗ ██████╗ 
+    ██║   ██║ ██╔════╝██╔════╝ ██╔══██╗ ██╔════╝ ██╔══██╗
+    ██║   ██║ █████╗  ╚█████╗  ██████╔╝ █████╗  ██████╔╝
+    ╚██╗ ██╔╝ ██╔══╝   ╚═══██╗ ██╔═══╝  ██╔══╝  ██╔══██╗
+     ╚████╔╝  ███████╗ ██████╔╝ ██║      ███████╗ ██║  ██║
+      ╚═══╝   ╚══════╝ ╚═════╝  ╚═╝      ╚══════╝ ╚═╝  ╚═╝
     
-    🔎 Professional OSINT Username Scanner - Rust Edition
+    🔎 vesper — Professional OSINT Username Scanner
 
 🔎 Investigating user on:
 
@@ -174,7 +174,7 @@ Default proxy address: `socks5://127.0.0.1:9050`
 
 To use Tor:
 1. Install and start Tor service
-2. Run maigret with `--tor` flag
+2. Run vesper with `--tor` flag
 
 ## 📊 Performance
 
@@ -196,7 +196,7 @@ The Rust implementation provides:
 
 ## 📝 Data Files
 
-The following files are **unchanged** from the Go version:
+The following files are **unchanged** from upstream:
 
 - `data.json` - Site database (2000+ sites)
 - `sites.md` - Site documentation

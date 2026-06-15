@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub struct Logger {
     pub no_color: bool,
     pub verbose: bool,
+    #[allow(dead_code)]
     multi_progress: Arc<MultiProgress>,
 }
 
@@ -27,6 +28,7 @@ impl Logger {
         }
     }
 
+    #[allow(dead_code)]
     pub fn print_found(&self, site: &str, url: &str) {
         if self.no_color {
             println!("[+] {}: {}", site, url);
@@ -122,6 +124,7 @@ impl Logger {
         }
     }
 
+    #[allow(dead_code)]
     pub fn create_progress_bar(&self, total: u64, message: &str) -> ProgressBar {
         let pb = self.multi_progress.add(ProgressBar::new(total));
 

@@ -2,13 +2,13 @@ use clap::Parser;
 
 #[derive(Parser, Debug, Clone)]
 #[command(
-    name = "maigret",
+    name = "vesper",
     version,
     about = "Professional OSINT Username Scanner",
-    long_about = "maigret - User OSINT Across Social Networks.\n\nA powerful tool for investigating usernames across 2000+ social networks and websites."
+    long_about = "vesper - User OSINT Across Social Networks.\n\nA powerful tool for investigating usernames across 2000+ social networks and websites."
 )]
 pub struct Cli {
-    #[arg(required = true)]
+    #[arg(required_unless_present_any = ["test", "download"])]
     pub usernames: Vec<String>,
 
     #[arg(long = "no-color")]
